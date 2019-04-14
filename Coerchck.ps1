@@ -1,110 +1,130 @@
 ﻿# Coerchck
-# v. 0.1 - 10/08/2018
+# v. 0.2 - 04/13/2019
 # by PresComm
 # https://github.com/PresComm/Coerchck
+# https://0x00sec.org
+
+#MIT License
+
+<#Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.#>
 
 #Trying to poll non-Windows machines results in nasty errors, so let's ignore them and move on when they pop up.
 $ErrorActionPreference = 'SilentlyContinue'
 
-#Main function
-function execute-main {
-
-show-intro
-gather-params
-scan-targets
-
-#After the guts of this script do the heavy lifting, we'll output all of our results to a .TXT file.
-echo $finaloutput | Out-File -filepath LocalAdmins.txt
-
-}
-
-#This function just echos some script, version, and author info.
-function show-intro {
-
+#Show banner, version info, authorship, etc.
 cls
 echo "Coerchck"
-echo "v. 0.1 - 10/08/2018"
+echo "v. 0.2 - 04/13/2019"
 echo "by PresComm"
 echo "https://github.com/PresComm/Coerchck"
+echo "https://0x00sec.org"
 echo ""
 
-}
+#Prompt user for sample IP and CIDR mask, then create the input string for iteration.
+$networkid = Read-Host -Prompt 'Enter sample IP on the target network'
+$cidrmask = Read-Host -Prompt 'Enter CIDR mask (such as 24, 16, 8, etc.)'
+$subnets = "$networkid/$cidrmask"
 
-#This function prompts the user to provide the network ID and CIDR mask of the network they wish to scan.
-#The script then calculates the total number of IPs in that range (subtracting any network ID or broadcast IPs)
-#and the first IP address. The string that will eventually grow into the final report is also initialized.
-function gather-params {
+#This is the function that iterates through the user-supplied subnet.
+#Credit for this portion of the script goes to Mark Gossa
+#on the Microsoft TechNet Gallery (https://gallery.technet.microsoft.com/scriptcenter/PowerShell-Subnet-db45ec74).
+#I ensured the license is fine for me to include this function in my script.
+foreach ($subnet in $subnets)
+    {
+        
+        #Split IP and subnet
+        $IP = ($Subnet -split "\/")[0]
+        $SubnetBits = ($Subnet -split "\/")[1]
+        
+        #Convert IP into binary
+        #Split IP into different octects and for each one, figure out the binary with leading zeros and add to the total
+        $Octets = $IP -split "\."
+        $IPInBinary = @()
+        foreach($Octet in $Octets)
+            {
+                #convert to binary
+                $OctetInBinary = [convert]::ToString($Octet,2)
+                
+                #get length of binary string add leading zeros to make octet
+                $OctetInBinary = ("0" * (8 - ($OctetInBinary).Length) + $OctetInBinary)
 
-$global:networkid = Read-Host -Prompt 'Enter network ID (in the format 192.168.1. complete with last decimal)'
-$cidrmask = Read-Host -Prompt 'Enter CIDR mask (such as 24, 16, 8, etc.) NOTE: Only 24 (255.255.255.0) masks are currently accepted'
-$cidrpower = (32 - $cidrmask)
-$global:ipcount = [math]::pow( 2, $cidrpower ) - 2
-$global:lastoctet = 1
-$global:firstip = $networkid+$lastoctet
-[string]$global:scanoutput = "Coerchck scan result report"
-[string]$global:addline = "" | Out-String
+                $IPInBinary = $IPInBinary + $OctetInBinary
+            }
+        $IPInBinary = $IPInBinary -join ""
 
-}
+        #Get network ID by subtracting subnet mask
+        $HostBits = 32-$SubnetBits
+        $NetworkIDInBinary = $IPInBinary.Substring(0,$SubnetBits)
+        
+        #Get host ID and get the first host ID by converting all 1s into 0s
+        $HostIDInBinary = $IPInBinary.Substring($SubnetBits,$HostBits)        
+        $HostIDInBinary = $HostIDInBinary -replace "1","0"
 
-#This function takes the user's input and performs the brunt of the script's work.
-function scan-targets {
+        #Work out all the host IDs in that subnet by cycling through $i from 1 up to max $HostIDInBinary (i.e. 1s stringed up to $HostBits)
+        #Work out max $HostIDInBinary
+        $imax = [convert]::ToInt32(("1" * $HostBits),2) -1
 
-#Initialize a do...while loop to scan each IP until the IP count reaches zero.
-do {
+        $IPs = @()
 
-#Clear the error variable to prepare for error catching mechanisms.
-$error.clear()
+        #Next ID is first network ID converted to decimal plus $i then converted to binary
+        For ($i = 1 ; $i -le $imax ; $i++)
+            {
+                #Convert to decimal and add $i
+                $NextHostIDInDecimal = ([convert]::ToInt32($HostIDInBinary,2) + $i)
+                #Convert back to binary
+                $NextHostIDInBinary = [convert]::ToString($NextHostIDInDecimal,2)
+                #Add leading zeros
+                #Number of zeros to add 
+                $NoOfZerosToAdd = $HostIDInBinary.Length - $NextHostIDInBinary.Length
+                $NextHostIDInBinary = ("0" * $NoOfZerosToAdd) + $NextHostIDInBinary
 
-#This command calls the function that actually attempts to pull the local user list from the target IP.
-try { [string]$currentoutput = get-localadmin $firstip }
+                #Work out next IP
+                #Add networkID to hostID
+                $NextIPInBinary = $NetworkIDInBinary + $NextHostIDInBinary
+                #Split into octets and separate by . then join
+                $IP = @()
+                For ($x = 1 ; $x -le 4 ; $x++)
+                    {
+                        #Work out start character position
+                        $StartCharNumber = ($x-1)*8
+                        #Get octet in binary
+                        $IPOctetInBinary = $NextIPInBinary.Substring($StartCharNumber,8)
+                        #Convert octet into decimal
+                        $IPOctetInDecimal = [convert]::ToInt32($IPOctetInBinary,2)
+                        #Add octet to IP 
+                        $IP += $IPOctetInDecimal
+                    }
 
-#Catch any errors thrown by the above command. Specifically, non-Windows machines will throw RPC errors when polled.
-catch { }
+                #Separate by .
+                $IP = $IP -join "."
 
-#If no error is thrown, this is executed. It stores the scanned IP as a variable, increments the target IP, decrements the IP count,
-#and glues the output of the poll to the final output string.
-if (!$error) {
-
-[string]$scannedip = $firstip
-$lastoctet = $lastoctet + 1 
-$ipcount = $ipcount - 1
-$firstip = $networkid+$lastoctet
-$scanoutput = $scanoutput+$addline+$scannedip+$addline+$currentoutput
-
-}
-
-#If an error is thrown, this is executed. It stores the scanned IP as a variable, increments the target IP, and decrements the IP count.
-#No operations are performed on the final output string.
-else {
-
-$lastoctet = $lastoctet + 1 
-$ipcount = $ipcount - 1
-$firstip = $networkid+$lastoctet
-
-}
-
-} while ($ipcount -gt 0)
-
-#Once the loop has terminated, the output string that has been growing is tossed into a global variable for call by the main function.
-[string]$global:finaloutput = $scanoutput
-
-}
-
-#This is the function that actually polls each target for the list of local administrators.
-#Credit for this portion of the script (which actually inspired this entire script) goes to
-#Paperclip on the Microsoft TechNet Gallery (https://gallery.technet.microsoft.com/scriptcenter/Get-remote-machine-members-bc5faa57).
-#I contacted them and received approval before reusing their function.
-function get-localadmin { 
-param ($strcomputer) 
+                #This is the function that actually polls each target for the list of local administrators.
+                #Credit for this portion of the script (which actually inspired this entire script) goes to
+                #Paperclip on the Microsoft TechNet Gallery (https://gallery.technet.microsoft.com/scriptcenter/Get-remote-machine-members-bc5faa57).
+                #I contacted them and received approval before reusing their function.
+                $admins = Gwmi win32_groupuser –computer $IP  
+                $admins = $admins |? {$_.groupcomponent –like '*"Administrators"'} 
  
-$admins = Gwmi win32_groupuser –computer $strcomputer  
-$admins = $admins |? {$_.groupcomponent –like '*"Administrators"'} 
- 
-$admins |% { 
-$_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
-$matches[1].trim('"') + “\” + $matches[2].trim('"') 
-} 
-}
+                $admins |% { 
+                $_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
+                $matches[1].trim('"') + “\” + $matches[2].trim('"') 
+                } 
 
-#Once all of the functions have been set up, the main function is called and the whole script launches.
-execute-main
+            }
+    }
