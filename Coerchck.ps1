@@ -1,5 +1,5 @@
 ﻿# Coerchck
-# v. 0.2 - 04/13/2019
+# v. 0.3 - 04/17/2019
 # by PresComm
 # https://github.com/PresComm/Coerchck
 # https://0x00sec.org
@@ -24,23 +24,56 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.#>
 
-#Trying to poll non-Windows machines results in nasty errors, so let's ignore them and move on when they pop up.
-$ErrorActionPreference = 'SilentlyContinue'
+#Allow user to provide their desired target subnet as a command-line parameter, as well as their desired output format
+Param(
+[string]$subnets,
+[string]$output,
+[string]$filepath
+)
 
 #Show banner, version info, authorship, etc.
 cls
 echo "Coerchck"
-echo "v. 0.2 - 04/13/2019"
+echo "v. 0.3 - 04/17/2019"
 echo "by PresComm"
 echo "https://github.com/PresComm/Coerchck"
 echo "https://0x00sec.org"
 echo ""
 
-#Prompt user for sample IP and CIDR mask, then create the input string for iteration.
+#Trying to poll non-Windows machines results in nasty errors, so let's ignore them and move on when they pop up.
+$ErrorActionPreference = 'SilentlyContinue'
+
+#If no command-line paramter was provided for target subnet, prompt user for sample IP and CIDR mask, then create the input string for iteration.
+if ($subnets -eq "") {
 $networkid = Read-Host -Prompt 'Enter sample IP on the target network'
 $cidrmask = Read-Host -Prompt 'Enter CIDR mask (such as 24, 16, 8, etc.)'
 $subnets = "$networkid/$cidrmask"
+echo ""
+}
+#If no command-line paramter was provided for output format, ask user for it here
+if ($output -eq "") {
+    $output = Read-Host -Prompt 'Enter desired output format (TXT, CSV, or HTML), or leave blank for no output file'
+    echo ""
+    #If no command-line parameter was provided for output filepath, prompt user to supply it here
+    if ($filepath -eq "") {
+    $filepath = Read-Host -Prompt 'Enter file path for output, or leave blank to write file to current directory with default filename'
+    echo ""
+    }
+}
 
+#If an output format of some kind was supplied as a parameter, react accordingly and create the initial file so we can loop through and append to it.
+if ($output -eq "TXT"){
+    echo "Scan Results" | Select-Object @{Name='Coerchck - Local Admin Subnet Scanner';Expression={$_}} | Out-File $filepath
+}
+if ($output -eq "CSV"){
+    echo "Scan Results" | Select-Object @{Name='Coerchck - Local Admin Subnet Scanner';Expression={$_}} | Export-Csv -Path $filepath -NoTypeInformation
+}
+if ($output -eq "HTML"){
+    echo "Coerchck - Local Admin Subnet Scanner"''"Scan Results" | Select-Object @{Expression={$_}} | ConvertTo-Html | Out-File $filepath
+}
+
+echo "Beginning scan of $subnets..."
+echo ""
 #This is the function that iterates through the user-supplied subnet.
 #Credit for this portion of the script goes to Mark Gossa
 #on the Microsoft TechNet Gallery (https://gallery.technet.microsoft.com/scriptcenter/PowerShell-Subnet-db45ec74).
@@ -114,6 +147,16 @@ foreach ($subnet in $subnets)
                 #Separate by .
                 $IP = $IP -join "."
 
+                echo "Loading results for $IP..."
+                if ($output -eq "TXT") {
+                    echo $IP | Select-Object @{Name='Displaying results for...';Expression={$_}}>>$filepath
+                }
+                if ($output -eq "CSV") {
+                    echo $IP | Select-Object @{Name='Displaying results for...';Expression={$_}} | Out-File $filepath -Append -Encoding Unicode
+                }
+                if ($output -eq "HTML") {
+                    echo "Displaying results for"''$IP | Select-Object @{Expression={$_}} | ConvertTo-Html | Out-File $filepath -Append -Encoding Unicode
+                }
                 #This is the function that actually polls each target for the list of local administrators.
                 #Credit for this portion of the script (which actually inspired this entire script) goes to
                 #Paperclip on the Microsoft TechNet Gallery (https://gallery.technet.microsoft.com/scriptcenter/Get-remote-machine-members-bc5faa57).
@@ -121,10 +164,32 @@ foreach ($subnet in $subnets)
                 $admins = Gwmi win32_groupuser –computer $IP  
                 $admins = $admins |? {$_.groupcomponent –like '*"Administrators"'} 
  
-                $admins |% { 
-                $_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
-                $matches[1].trim('"') + “\” + $matches[2].trim('"') 
-                } 
 
+                if ($output -eq "TXT") {
+                    $admins |% { 
+                    $_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
+                    $matches[1].trim('"') + “\” + $matches[2].trim('"') 
+                    } | Select-Object @{Name='Account Name';Expression={$_}}>>$filepath
+                }
+                if ($output -eq "CSV") {
+                    $admins |% { 
+                    $_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
+                    $matches[1].trim('"') + “\” + $matches[2].trim('"') 
+                    } | Select-Object @{Name='Account Name';Expression={$_}} | Out-File $filepath -Append -Encoding Unicode
+                }
+                if ($output -eq "HTML") {
+                    $admins |% { 
+                    $_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
+                    $matches[1].trim('"') + “\” + $matches[2].trim('"') 
+                    } | Select-Object @{Expression={$_}} | ConvertTo-Html | Out-File $filepath -Append -Encoding Unicode
+                }
+                else {
+                    $admins |% { 
+                    $_.partcomponent –match “.+Domain\=(.+)\,Name\=(.+)$” > $nul 
+                    $matches[1].trim('"') + “\” + $matches[2].trim('"') 
+                    }
+                }
+                    
+                echo ""
             }
     }
