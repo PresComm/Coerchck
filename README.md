@@ -1,3 +1,5 @@
+Massive overhaul. Added functionality to allow user to target single IPs or ranges of IPs in addition to subnets. Added functionality to allow user to read lines from an input text file composed of a mixture of acceptable target types (single IPs, ranges, and subnets). Added functionality for the script to reach out to targets via TCP port 445 before polling for administrator list; if no response is received on port 445 within 3 seconds, the target is ignored. Added a -help parameter. Removed interactive prompts; all parameters must now be supplied at the command-line. Broke out script into functions again to ease scalibility and reduce line count. Added functionality to detect and output FQDN where possible. Updated README.md.
+
 # Coerchck
 
 #### Description:
@@ -6,46 +8,55 @@ A PowerShell utility that scans networks to search for local administrator accou
 
 #### Usage:
 
-When run under the context of a user with admin privileges on the target machines, Coerchck will iterate through a user-supplied subnet and pull a list of local administrators for each Windows machine contacted.
-
-Coerchck can be run with parameters supplied at the command line; any parameters that aren't supplied on the command line will be asked for interactively upon running the script.
+When run under the context of a user with admin privileges on the target machines, Coerchck will iterate through a user-supplied target or target list and pull a list of local administrators for each Windows machine contacted.
 
 Accepted parameters:
 
--subnets
+-targets
 
-Specificies the target subnet to be scanned.
+Specifies the target(s) to be scanned.
 
-Example: 192.168.1.0/24
+Examples: 192.168.1.1, 192.168.1.25-50, 192.168.1.0/24
+
+-intarget
+
+Allows user to specify an input file of targets, one entry per line (see -targets example for acceptable input types.)
+
+Example: .\input.txt
 
 -output
 
-Specifies the output format (if left blank, no file will be output; results will be written to the terminal).
+Specifies the output format (if left blank, no file will be output; results will be written to the terminal.)
 
 Currently supported output options: TXT, CSV, HTML
 
 -filepath
 
-Specificies the path for the output file (cannot be used without -output; if left blank, no file will be written [I will address this in an upcoming update]).
+Specifies the path for the output file (cannot be used without -output; if left blank, no file will be written [I will address this in an upcoming update]).
 
 Example: C:\Users\Username\Desktop\Output.txt
 
+-help
+
+Displays help information.
+
+Accepted values: true
+
 #### Notes:
 
-- Now supports subnets of any size!
-- Now supports command-line parameters (see "Usage" for more information)!
-- Now supports file output in TXT, CSV, and HTML formats (this feature is VERY rough. I will address formatting in an upcoming update.)
-- Speed of script depends on a number of factors, subnet size being the most obvious, including number of active Windows workstations within the scan scope.
+- Now supports single IPs, IP ranges, and subnets of any size!
+- Now supports parameters only via the command-line; no more interactive prompts.
+- Now has a -help parameter!
+- Functions have been re-added.
+- Now attempts to connect to potential targets on TCP port 445 before polling for administrator list. Speed is significantly increased as a result (I realize this may lead to false negatives and blank input for non-Windows SMB/Samba shares or other services running on this well-known port. I will continue to polish this feature in future updates.)
+- Now supports input text files containing a list of targets. This means the user can supply a mixture of single IPs, IP ranges, and subnets of any size for a single scan!
 
 #### Plans:
 
 - Allow for verbose output of scanning process.
 - Allow for non-CIDR subnet masks (such as 255.255.255.0).
-- Display hostname/FQDN instead of just the IP.
 - Possible support for non-domain or out-of-permission targets.
 - Possible support for user-supplied credentials at the command-line.
-- Possible support for non-contiguous, separate subnets to be queued up at beginning of scan (e.g., 192.168.1.0-256, 10.10.1.0-256, etc.)
-- Possible use of pings and/or OS detection to drop targets from the scan scope and speed up total scan time.
 - Possible support for automatically pulling the local IP and subnet mask of the machine running the script to use as the input.
 
 ### Credit:
