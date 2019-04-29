@@ -1,5 +1,3 @@
-Massive overhaul. Added functionality to allow user to target single IPs or ranges of IPs in addition to subnets. Added functionality to allow user to read lines from an input text file composed of a mixture of acceptable target types (single IPs, ranges, and subnets). Added functionality for the script to reach out to targets via TCP port 445 before polling for administrator list; if no response is received on port 445 within 3 seconds, the target is ignored. Added a -help parameter. Removed interactive prompts; all parameters must now be supplied at the command-line. Broke out script into functions again to ease scalibility and reduce line count. Added functionality to detect and output FQDN where possible. Updated README.md.
-
 # Coerchck
 
 #### Description:
