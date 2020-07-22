@@ -1,8 +1,10 @@
 ﻿# Coerchck
-# v. 0.4 - 04/29/2019
+# v. 0.5 - 07/22/2020
 # by PresComm
 # https://github.com/PresComm/Coerchck
-# https://0x00sec.org
+# https://www.presumptuouscommoner.com
+
+# I am deprecating this standalone script. Coerchck's functionality has been moved into a module (Coerchck.psm1) as part of The Civyanquark Inspector (https://github.com/PresComm/TheCivyanquarkInspector).
 
 #MIT License
 
@@ -69,6 +71,8 @@ function show-banner() {
 function show-help() {
     echo "[===HELP INFORMATION===]"
     echo ""
+	echo "NOTICE: I am deprecating this standalone script. Coerchck's functionality has been moved into a module (Coerchck.psm1) as part of The Civyanquark Inspector (https://github.com/PresComm/TheCivyanquarkInspector)."
+	echo ""
     echo "When run under the context of a user with admin privileges on the target machines, Coerchck will iterate through a user-supplied target or target list and pull a list of local administrators for each Windows machine contacted."
     echo ""
     echo "Accepted parameters:"
